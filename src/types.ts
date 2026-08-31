@@ -28,7 +28,7 @@ export interface ExecutionResult {
 }
 
 export interface PatchResult {
-  patched_code: string;
+  fixed_code: string;
   explanation: string;
   patch_verified: boolean;
 }
