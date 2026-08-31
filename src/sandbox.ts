@@ -3,7 +3,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { ExecutionResult, TestExecutionStatus } from './types';
 
-class EX_Sandbox{
+export class EX_Sandbox{
     private temp_test_path: string;
 
     constructor(target_file_path: string){
