@@ -47,21 +47,48 @@ export class AI_code_generator{
             Provide the complete remediated source file. Do not break existing contracts.
         `;
 
-        const response = await this.ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: patch_schema,
-                temperature: 0.1
+        let response;
+        let retries = 3;
+        while(retries > 0){
+            try {
+                response = await this.ai.models.generateContent({
+                    model: 'gemini-3.6-flash',
+                    contents: prompt,
+                    config: {
+                        responseMimeType: 'application/json',
+                        responseSchema: patch_schema,
+                        temperature: 0.1
+                    }
+                });
+                break;
+            } catch(error: any){
+                const can_retry = error.status === 429 || error.status >= 500 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT';
+                if(can_retry && retries > 1){
+                    console.log("Gemini busy, retrying in 5 sec to generate fix");
+                    await new Promise(wait => setTimeout(wait, 5000));
+                    retries--;
+                } else {
+                    throw error;
+                }
             }
-        });
+        }
 
-        if(!response.text) {
+        if(!response || !response.text) {
             throw new Error("No response from gemini during code fix");
         }
 
-        const parsed = JSON.parse(response.text.trim());
+        let parsed;
+        try {
+            parsed = JSON.parse(response.text.trim());
+        } catch(error: any){
+            console.log("Invalid JSON");
+            return {
+                fixed_code: original_code,
+                explanation: 'Failed due to invalid output format.',
+                patch_verified: false
+            }
+        }
+
         const fixed_code: string = parsed.full_fixed_code;
 
         const backup_code = fs.readFileSync(filepath, 'utf-8');
@@ -78,6 +105,7 @@ export class AI_code_generator{
                 sandbox.cleanup();
             }
 
+            fs.writeFileSync(filepath, backup_code);
             if(verify_result.status === TestExecutionStatus.TARGET_PASSED){
                 return {
                     fixed_code,
@@ -85,7 +113,6 @@ export class AI_code_generator{
                     patch_verified: true
                 }
             } else {
-                fs.writeFileSync(filepath, backup_code);
                 return {
                     fixed_code: original_code,
                     explanation: 'Code fix failed verification. Reverted to original source.',
