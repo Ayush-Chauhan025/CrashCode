@@ -20,7 +20,7 @@ export class EX_Sandbox{
         try {
             const stdout = execSync(`npx jest ${this.temp_test_path} --runInBand --no-cache`, {
                 stdio: 'pipe',
-                timeout: 8000,
+                timeout: 30000,
                 encoding: 'utf-8'
             });
 
@@ -32,7 +32,7 @@ export class EX_Sandbox{
             const stderr = error.stderr?.toString() || error.stdout?.toString() || '';
 
             // syntax error
-            const syntax_error_types = ['SyntaxError', 'Cannot find module', 'TypeScript diagnostics'];
+            const syntax_error_types = ['SyntaxError', 'Cannot find module', 'TypeScript diagnostics', 'Cannot find name'];
             for (const error_type of syntax_error_types){
                 if(stderr.includes(error_type)){
                     return {
@@ -47,7 +47,7 @@ export class EX_Sandbox{
             if (error.killed || error.signal === 'SIGTERM') {
                 return {
                     status: TestExecutionStatus.TIMEOUT,
-                    raw_output: 'Test timed out after 8000ms',
+                    raw_output: 'Test timed out after 30000ms',
                     error_trace: 'Possible infinite loop detected.'
                 };
             }
