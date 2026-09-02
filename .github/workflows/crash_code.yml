@@ -9,7 +9,7 @@ jobs:
   audit-and-report:
     runs-on: ubuntu-latest
     permissions:
-      pull_requests: write
+      pull-requests: write
       contents: read
 
     steps:
