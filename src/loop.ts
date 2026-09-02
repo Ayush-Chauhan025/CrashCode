@@ -17,7 +17,7 @@ export class FeedBack{
         this.generator = new AI_code_generator();
     }
 
-    public async audit_file(target_filepath: string, max_fix_attempts=3): Promise<void> {
+    public async audit_file(target_filepath: string, max_exploit_attempts=3): Promise<void> {
         const fullpath = path.resolve(process.cwd(), target_filepath);
         if(!fs.existsSync(fullpath)){
             console.error(`No file found at ${fullpath}`);
@@ -41,7 +41,7 @@ export class FeedBack{
             let previous_error: string | undefined = undefined;
             let exploit_found = false;
 
-            while(attempts < max_fix_attempts && !exploit_found){
+            while(attempts < max_exploit_attempts && !exploit_found){
                 attempts++;
 
                 const exploit = await this.agent.generate_exploit(fullpath, fun, previous_error);
@@ -50,7 +50,7 @@ export class FeedBack{
                 let result;
                 try {
                     sandbox.write_test_file(exploit.jest_test_code);
-                    console.log("tests written");
+                    console.log("tests running");
                     result = sandbox.run();
                 } finally {
                     sandbox.cleanup();
@@ -58,18 +58,15 @@ export class FeedBack{
 
                 if(result.status === TestExecutionStatus.EXPLOIT_CONFIRMED){
                     exploit_found = true;
-
+                    console.log("Exploit Found");
+                    
                     // generate fix
                     const original_code = fs.readFileSync(fullpath, 'utf-8');
 
                     const fix = await this.generator.generate_fix(fullpath, original_code, exploit.jest_test_code, result.error_trace || '');
                     console.log(fix);
 
-                    if(fix.patch_verified){
-                        console.log("fix verified and applied");
-                    } else {
-                        console.log("fix failed");
-                    }
+                    this.generate_markdown_report(fun.name, exploit, fix, result.error_trace || '');
                     break;
                 } else if (result.status === TestExecutionStatus.SYNTAX_ERROR) {
                     console.log("Syntax error");
@@ -81,10 +78,53 @@ export class FeedBack{
                     console.log("Infinite loop");
                     break;
                 }
-            } 
+            }
             if (!exploit_found) {
                 console.log(`not able to find exploits for ${fun.name}`);
             }
         }
+    }
+
+    private generate_markdown_report(function_name: string, exploit: any, fix: any, error_trace: string){
+        const report = `## Vulnerability Detected
+
+**Function:** \`${function_name}\`  
+**Attack:** \`${exploit.vulnerability_type}\`  
+**Reason:** ${exploit.hypothesis}
+
+---
+
+### Failing Exploit Trace
+\`\`\`text
+${error_trace}
+\`\`\`
+
+<details>
+<summary><b>View Generated Jest Exploit Test</b></summary>
+
+\`\`\`typescript
+${exploit.jest_test_code}
+\`\`\`
+</details>
+
+\`\`\`typescript
+${exploit.jest_test_code}
+\`\`\`
+</details>
+
+---
+
+### Suggested Fix
+> ${fix.explanation}
+
+\`\`\`suggestion
+${fix.fixed_code}
+\`\`\`
+
+*Review the changes above and click **"Apply suggestion"** to commit this fix.*`;
+
+        const resort_path = path.resolve(process.cwd(), 'crash-report.md');
+        fs.writeFileSync(resort_path, report, 'utf-8');
+        console.log(`Report generated successfully at ${resort_path}`);
     }
 }
