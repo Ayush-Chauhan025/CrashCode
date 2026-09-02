@@ -59,20 +59,37 @@ export class AI_agent{
             `;
         }
 
-        const response = await this.ai.models.generateContent({
-            model: 'gemini-3.6-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: exploit_schema,
-                temperature: 0.2
+        let response;
+        let retries = 3;
+        while(retries > 0){
+            try {
+                response = await this.ai.models.generateContent({
+                    model: 'gemini-3.6-flash',
+                    contents: prompt,
+                    config: {
+                        responseMimeType: 'application/json',
+                        responseSchema: exploit_schema,
+                        temperature: 0.1
+                    }
+                });
+                break;
+            } catch(error: any){
+                const network_error = error.cause?.code === 'UND_ERR_HEADERS_TIMEOUT' || error.message.includes('fetch failed');
+                const can_retry = error.status === 503 || error.status === 429 || error.status >= 500;
+                if((can_retry || network_error) && retries > 1){
+                    console.log("Gemini busy, retrying in 5 sec to generate exploit");
+                    await new Promise(wait => setTimeout(wait, 5000));
+                    retries--;
+                } else {
+                    throw error;
+                }
             }
-        });
-
-        if (!response.text) {
-            throw new Error('Gemini returned an empty response');
         }
-        console.log(response);
+
+        if (!response || !response.text) {
+            throw new Error("No response from gemini during exploit generation");
+        }
+
         const parsed: ExploitPayload = JSON.parse(response.text.trim());
         console.log(parsed);
         return parsed;
