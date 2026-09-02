@@ -1,13 +1,16 @@
-import { AST_Parser } from "./parser";
-import { AI_agent } from "./agent";
+import { FeedBack } from "./loop";
 
-const parser = new AST_Parser();
-const agent = new AI_agent();
+async function main(){
+    const target_file = process.argv[2];
+    if(!target_file){
+      console.log("No file to Check");
+      process.exit(0);
+    }
+    const loop = new FeedBack();
+    await loop.audit_file(target_file);
+}
 
-const functions = parser.extract_exported_function(
-    "./src/sample.ts"
-);
-
-const result = agent.generate_exploit("./sample.ts", functions[0]);
-
-console.log(result);
+main().catch(err => {
+  console.error('execution error:', err);
+  process.exit(1);
+});
